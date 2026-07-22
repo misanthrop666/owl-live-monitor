@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#030712">
+  <title>OWL Live Monitor</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+
+  <style>
+    ::-webkit-scrollbar{width:5px}
+    ::-webkit-scrollbar-track{background:#111827}
+    ::-webkit-scrollbar-thumb{background:#374151;border-radius:3px}
+    .leaflet-container{background:#030712}
+    .leaflet-control-zoom a{background:#1f2937!important;color:#e5e7eb!important;border-color:#374151!important}
+    .leaflet-control-zoom a:hover{background:#374151!important}
+    .leaflet-popup-content-wrapper{background:#1f2937;color:#e5e7eb;border:1px solid #374151;border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.7)}
+    .leaflet-popup-tip{background:#1f2937}
+    .leaflet-popup-close-button{color:#9ca3af!important;font-size:18px!important;top:6px!important;right:8px!important}
+    .leaflet-popup-content{margin:12px 14px}
+    .kreis-label{background:transparent!important;border:none!important;box-shadow:none!important}
+    @keyframes pulse-new{0%,100%{transform:scale(1);filter:brightness(1) drop-shadow(0 2px 6px rgba(0,0,0,.9))}50%{transform:scale(1.5);filter:brightness(2) drop-shadow(0 0 12px gold)}}
+    .marker-new{animation:pulse-new 0.8s ease-in-out 4}
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+    .status-live{animation:blink 2s infinite}
+    .ticker-item{transition:background .15s}
+    .ticker-item:hover{background:rgba(255,255,255,.04)}
+    .line-clamp-2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    #mobile-drawer{transition:transform .3s cubic-bezier(.4,0,.2,1)}
+    #mobile-drawer.closed{transform:translateY(calc(100% - 52px))}
+    @media(max-width:767px){#sidebar{display:none}#mobile-fab,#mobile-drawer{display:flex}}
+    @media(min-width:768px){#mobile-drawer,#mobile-fab{display:none}}
+    .filter-chip{transition:all .15s}
+    input[type=range]{-webkit-appearance:none;height:4px;border-radius:2px;background:#374151;outline:none}
+    input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#3b82f6;cursor:pointer}
+    .chart-wrap{position:relative;height:160px}
+    .chart-wrap-sm{position:relative;height:180px}
+  </style>
+</head>
+
+<body class="bg-gray-950 text-gray-100 h-screen flex overflow-hidden" style="font-family:system-ui,-apple-system,sans-serif;">
+
+<!-- ═══════════════════════════ SIDEBAR ═══════════════════════════ -->
+<aside id="sidebar" class="flex-shrink-0 flex flex-col bg-gray-900 border-r border-gray-800 overflow-hidden z-10" style="width:310px;">
+
+  <!-- Header -->
+  <div class="px-4 py-3 border-b border-gray-800 flex items-center justify-between flex-shrink-0">
+    <div>
+      <h1 class="text-sm font-bold text-white tracking-widest uppercase">OWL Live Monitor</h1>
+      <p class="text-xs text-gray-500 mt-0.5" id="last-update">Wird geladen…</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <div class="w-2 h-2 rounded-full bg-green-400 status-live" id="global-dot" title="Live"></div>
+      <button onclick="openStats()" class="text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-gray-800 transition-colors" title="Statistiken öffnen">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Wetter Widget -->
+  <div class="px-4 py-2 border-b border-gray-800 flex items-center gap-3 flex-shrink-0">
+    <span id="w-icon" class="text-2xl">⏳</span>
+    <div class="flex-1 min-w-0">
+      <div class="text-sm font-semibold text-white" id="w-temp">–°C</div>
+      <div class="text-xs text-gray-400 truncate" id="w-desc">Wetter wird geladen</div>
+    </div>
+    <div class="text-right text-xs text-gray-500 flex-shrink-0">
+      <div id="w-wind">💨 –</div>
+      <div id="w-hum">💧 –</div>
+    </div>
+  </div>
+
+  <!-- Quellenstatus -->
+  <div class="px-4 py-1.5 border-b border-gray-800 flex-shrink-0">
+    <div class="flex flex-wrap gap-x-2 gap-y-1" id="source-status-bar"></div>
+  </div>
+
+  <!-- Mini-Stats -->
+  <div class="px-4 py-2 border-b border-gray-800 flex-shrink-0">
+    <div class="flex flex-wrap gap-1" id="mini-badges"></div>
+    <p class="text-xs text-gray-400 mt-1" id="hotspot-line">–</p>
+  </div>
+
+  <!-- Filter Panel -->
+  <div class="px-4 py-2 border-b border-gray-800 space-y-2 flex-shrink-0">
+    <!-- Typ -->
+    <div>
+      <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">Quellen</div>
+      <div class="flex flex-wrap gap-1" id="type-filters"></div>
+    </div>
+    <!-- Zeit -->
+    <div>
+      <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">Zeitraum</div>
+      <div class="flex gap-1" id="time-filters">
+        <button class="filter-time px-2 py-0.5 rounded text-xs bg-blue-600 text-white" data-h="24">24h</button>
+        <button class="filter-time px-2 py-0.5 rounded text-xs bg-gray-800 text-gray-400" data-h="72">3 Tage</button>
+        <button class="filter-time px-2 py-0.5 rounded text-xs bg-gray-800 text-gray-400" data-h="120">5 Tage</button>
+        <button class="filter-time px-2 py-0.5 rounded text-xs bg-gray-800 text-gray-400" data-h="9999">Alle</button>
+      </div>
+    </div>
+    <!-- Schwere -->
+    <div>
+      <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">Schwere</div>
+      <div class="flex flex-wrap gap-1">
+        <button class="filter-sev px-2 py-0.5 rounded text-xs bg-blue-600 text-white" data-s="all">Alle</button>
+        <button class="filter-sev px-2 py-0.5 rounded text-xs bg-gray-800 text-gray-400" data-s="extreme">🔴 Extrem</button>
+        <button class="filter-sev px-2 py-0.5 rounded text-xs bg-gray-800 text-gray-400" data-s="high">🟠 Hoch</button>
+        <button class="filter-sev px-2 py-0.5 rounded text-xs bg-gray-800 text-gray-400" data-s="medium">🟡 Mittel</button>
+        <button class="filter-sev px-2 py-0.5 rounded text-xs bg-gray-800 text-gray-400" data-s="low">⚪ Niedrig</button>
+      </div>
+    </div>
+    <!-- Radius -->
+    <div>
+      <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">Radius: <span id="radius-val" class="text-gray-300">50 km</span></div>
+      <input type="range" id="radius-slider" min="5" max="100" value="50" step="5" class="w-full">
+    </div>
+    <!-- Suche -->
+    <input type="text" id="search-box" placeholder="🔍 Suche in Meldungen…" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors">
+  </div>
+
+  <!-- Tabs -->
+  <div class="flex border-b border-gray-800 flex-shrink-0">
+    <button class="tab-btn flex-1 py-2 text-xs font-medium text-blue-400 border-b-2 border-blue-500" data-t="ticker">Ticker</button>
+    <button class="tab-btn flex-1 py-2 text-xs font-medium text-gray-500" data-t="journal">Tagebuch</button>
+  </div>
+
+  <!-- Ticker -->
+  <div id="pane-ticker" class="flex-1 overflow-y-auto" style="min-height:0;">
+    <div id="ticker-list"><div class="px-4 py-8 text-center text-gray-500 text-sm">Wird geladen…</div></div>
+  </div>
+
+  <!-- Tagebuch -->
+  <div id="pane-journal" class="hidden flex-1 overflow-y-auto p-3 space-y-2" style="min-height:0;">
+    <div id="journal-list"><p class="text-xs text-gray-500 text-center">Keine Einträge.</p></div>
+  </div>
+
+</aside>
+
+<!-- ═══════════════════════════ MAP ═══════════════════════════ -->
+<main class="flex-1 relative overflow-hidden">
+  <div id="map" class="absolute inset-0"></div>
+
+  <!-- Map Controls (top-right) -->
+  <div class="absolute top-3 right-3 z-20 flex flex-col gap-2" style="min-width:120px;">
+    <div class="bg-gray-900/92 border border-gray-700 rounded-xl p-3 text-xs space-y-2">
+      <div class="text-gray-400 font-medium uppercase tracking-wide text-xs mb-1">Ebenen</div>
+      <label class="flex items-center gap-2 cursor-pointer text-gray-300 hover:text-white">
+        <input type="checkbox" id="toggle-heatmap" class="accent-blue-500 cursor-pointer"> Heatmap
+      </label>
+      <label class="flex items-center gap-2 cursor-pointer text-gray-300 hover:text-white">
+        <input type="checkbox" id="toggle-kreise" checked class="accent-blue-500 cursor-pointer"> Kreise
+      </label>
+      <label class="flex items-center gap-2 cursor-pointer text-gray-300 hover:text-white">
+        <input type="checkbox" id="toggle-radius" checked class="accent-blue-500 cursor-pointer"> Radius
+      </label>
+    </div>
+    <div class="bg-gray-900/92 border border-gray-700 rounded-xl p-3 text-xs space-y-2">
+      <div class="text-gray-400 font-medium uppercase tracking-wide text-xs mb-1">Karte</div>
+      <label class="flex items-center gap-2 cursor-pointer text-gray-300 hover:text-white">
+        <input type="radio" name="mtype" value="dark" checked class="accent-blue-500"> Dark
+      </label>
+      <label class="flex items-center gap-2 cursor-pointer text-gray-300 hover:text-white">
+        <input type="radio" name="mtype" value="sat" class="accent-blue-500"> Satellit
+      </label>
+      <label class="flex items-center gap-2 cursor-pointer text-gray-300 hover:text-white">
+        <input type="radio" name="mtype" value="osm" class="accent-blue-500"> Standard
+      </label>
+    </div>
+    <button onclick="toggleFullscreen()" class="bg-gray-900/92 border border-gray-700 rounded-xl p-2 text-xs text-gray-300 hover:text-white hover:border-gray-500 transition-colors text-center">⛶ Vollbild</button>
+  </div>
+
+  <!-- Refresh bar (bottom-right) -->
+  <div class="absolute bottom-4 right-4 z-20 bg-gray-900/90 border border-gray-700 rounded-xl px-3 py-2 flex items-center gap-3 text-xs">
+    <span class="w-2 h-2 rounded-full bg-green-400 status-live flex-shrink-0"></span>
+    <span id="countdown" class="text-gray-400 font-mono">5:00</span>
+    <button onclick="manualRefresh()" class="text-gray-400 hover:text-white transition-colors" title="Jetzt aktualisieren">↻</button>
+    <button id="sound-btn" onclick="toggleSound()" class="text-gray-400 hover:text-white transition-colors" title="Ton-Alert">🔕</button>
+  </div>
+</main>
+
+<!-- ═══════════════════════════ STATS OVERLAY ═══════════════════════════ -->
+<div id="stats-overlay" class="hidden fixed inset-0 bg-gray-950/97 z-50 flex flex-col" style="backdrop-filter:blur(8px);z-index:2000;">
+  <div class="flex items-center justify-between px-6 py-4 border-b border-gray-800 flex-shrink-0">
+    <h2 class="text-base font-bold text-white tracking-wide">Statistiken & Lageübersicht</h2>
+    <button onclick="closeStats()" class="text-gray-400 hover:text-white text-2xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-800 transition-colors">×</button>
+  </div>
+  <div class="flex-1 overflow-y-auto p-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 max-w-6xl mx-auto">
+
+      <div class="bg-gray-900 rounded-xl p-4 border border-gray-800 md:col-span-2">
+        <div class="text-sm font-medium text-gray-300 mb-3">Meldungen pro Stunde — letzte 24 h</div>
+        <div class="chart-wrap"><canvas id="ch-hourly"></canvas></div>
+      </div>
+
+      <div class="bg-gray-900 rounded-xl p-4 border border-gray-800">
+        <div class="text-sm font-medium text-gray-300 mb-3">Quellen-Breakdown</div>
+        <div class="chart-wrap-sm"><canvas id="ch-sources"></canvas></div>
+      </div>
+
+      <div class="bg-gray-900 rounded-xl p-4 border border-gray-800">
+        <div class="text-sm font-medium text-gray-300 mb-3">Schwere-Verteilung (Polizei)</div>
+        <div class="chart-wrap-sm"><canvas id="ch-sev"></canvas></div>
+      </div>
+
+      <div class="bg-gray-900 rounded-xl p-4 border border-gray-800">
+        <div class="text-sm font-medium text-gray-300 mb-3">Deliktstypen</div>
+        <div class="chart-wrap-sm"><canvas id="ch-crimes"></canvas></div>
+      </div>
+
+      <div class="bg-gray-900 rounded-xl p-4 border border-gray-800">
+        <div class="text-sm font-medium text-gray-300 mb-3">Aktivste Kreise (alle Quellen)</div>
+        <div id="top-kreise" class="space-y-2 mt-1"></div>
+      </div>
+
+      <div class="bg-gray-900 rounded-xl p-4 border border-gray-800">
+        <div class="text-sm font-medium text-gray-300 mb-3">Gefährlichkeits-Ranking (Polizei)</div>
+        <div id="danger-rank" class="space-y-2 mt-1"></div>
+      </div>
+
+      <div class="bg-gray-900 rounded-xl p-4 border border-gray-800 md:col-span-2">
+        <div class="text-sm font-medium text-gray-300 mb-3">Verlauf: Heute vs. Gestern</div>
+        <div class="chart-wrap"><canvas id="ch-trend"></canvas></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════ JOURNAL MODAL ═══════════════════════════ -->
+<div id="journal-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70" style="z-index:2000;">
+  <div class="bg-gray-900 border border-gray-700 rounded-2xl p-5 w-full max-w-md shadow-2xl">
+    <h3 class="font-semibold text-white mb-1">Lagetagebuch</h3>
+    <p class="text-xs text-gray-400 mb-3" id="j-ref"></p>
+    <textarea id="j-text" rows="4" placeholder="Eigene Beobachtung…"
+      class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none transition-colors"></textarea>
+    <div class="flex gap-2 mt-3">
+      <button onclick="saveJournal()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-sm py-2 rounded-xl transition-colors font-medium">Speichern</button>
+      <button onclick="closeJournal()" class="flex-1 bg-gray-800 hover:bg-gray-700 text-white text-sm py-2 rounded-xl transition-colors">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════ MOBILE DRAWER ═══════════════════════════ -->
+<div id="mobile-drawer" class="fixed bottom-0 left-0 right-0 z-40 bg-gray-900 border-t border-gray-700 rounded-t-2xl closed flex-col" style="height:72vh;">
+  <div class="flex items-center justify-center py-3 cursor-pointer flex-shrink-0" onclick="toggleDrawer()">
+    <div class="w-10 h-1.5 bg-gray-600 rounded-full"></div>
+  </div>
+  <div class="flex border-b border-gray-800 px-3 flex-shrink-0">
+    <button class="mob-tab flex-1 py-2 text-xs font-medium text-blue-400 border-b-2 border-blue-400" data-t="ticker">Ticker</button>
+    <button class="mob-tab flex-1 py-2 text-xs font-medium text-gray-500" data-t="filter">Filter</button>
+  </div>
+  <div id="mob-content" class="flex-1 overflow-y-auto">
+    <div id="mob-ticker"></div>
+  </div>
+</div>
+
+<button id="mobile-fab" onclick="toggleDrawer()" class="fixed bottom-5 right-5 z-40 bg-blue-600 hover:bg-blue-500 rounded-full w-13 h-13 items-center justify-center text-white text-xl shadow-2xl transition-colors" style="width:52px;height:52px;">≡</button>
+
+<script>
+// ─────────────────────── CONFIG ───────────────────────
+const CFG = {
+  center: [52.11, 8.65],
+  zoom: 10,
+  maxAgeDays: 5,
+  CORS: 'https://corsproxy.io/?url=',
+};
+
+const COLORS = {
+  nina:      '#E040FB',
+  feuerwehr: '#FF6600',
+  dwd:       '#FFAA00',
+  thw:       '#0055CC',
+  polizei:   '#FFD700',
+  pegel:     '#00BCD4',
+  medien:    '#9C27B0',
+};
+const ICONS = { nina:'⚠️', feuerwehr:'🔥', dwd:'🌩️', thw:'🔧', polizei:'🚔', pegel:'💧', medien:'📰' };
+const LABELS = { nina:'NINA', feuerwehr:'Feuerwehr', dwd:'DWD', thw:'THW', polizei:'Polizei', pegel:'Pegel', medien:'Medien' };
+const SEV_SIZE = { extreme:38, high:30, medium:24, low:19 };
+
+const LOCS = {
+  hf:  [52.115, 8.661,  'Herford'],
+  bi:  [52.020, 8.532,  'Bielefeld'],
+  mi:  [52.290, 8.916,  'Minden-Lübbecke'],
+  lip: [51.922, 8.883,  'Lippe'],
+  gt:  [51.907, 8.383,  'Gütersloh'],
+  os:  [52.279, 8.047,  'Osnabrück'],
+};
+
+// Presseportal IDs — verified where possible, marked with ? where uncertain
+// If a feed returns 404, source status turns red automatically
+// Presseportal IDs — alle verifiziert via presseportal.de/blaulicht/nr/{ID}
+const RSS_FEEDS = [
+  { id:'pp_hf',  type:'polizei', lat:LOCS.hf[0],  lon:LOCS.hf[1],  kreis:LOCS.hf[2],  label:'Polizei Herford',         url:'https://www.presseportal.de/rss/dienststelle_65846.rss' },
+  { id:'pp_bi',  type:'polizei', lat:LOCS.bi[0],  lon:LOCS.bi[1],  kreis:LOCS.bi[2],  label:'Polizei Bielefeld',        url:'https://www.presseportal.de/rss/dienststelle_12522.rss' },
+  { id:'pp_mi',  type:'polizei', lat:LOCS.mi[0],  lon:LOCS.mi[1],  kreis:LOCS.mi[2],  label:'Polizei Minden-Lübbecke',  url:'https://www.presseportal.de/rss/dienststelle_43553.rss' },
+  { id:'pp_lip', type:'polizei', lat:LOCS.lip[0], lon:LOCS.lip[1], kreis:LOCS.lip[2], label:'Polizei Lippe',             url:'https://www.presseportal.de/rss/dienststelle_12727.rss' },
+  { id:'pp_gt',  type:'polizei', lat:LOCS.gt[0],  lon:LOCS.gt[1],  kreis:LOCS.gt[2],  label:'Polizei Gütersloh',        url:'https://www.presseportal.de/rss/dienststelle_23127.rss' },
+  { id:'pp_os',  type:'polizei', lat:LOCS.os[0],  lon:LOCS.os[1],  kreis:LOCS.os[2],  label:'Polizei Osnabrück',        url:'https://www.presseportal.de/rss/dienststelle_104236.rss' },
+  { id:'pp_fw_dt',  type:'feuerwehr', lat:51.934, lon:8.881, kreis:'Lippe',          label:'Feuerwehr Detmold',     url:'https://www.presseportal.de/rss/dienststelle_116239.rss' },
+  { id:'pp_fw_mi',  type:'feuerwehr', lat:52.290, lon:8.916, kreis:'Minden-Lübbecke', label:'Feuerwehr Minden',       url:'https://www.presseportal.de/rss/dienststelle_152228.rss' },
+  { id:'pp_fw_la',  type:'feuerwehr', lat:51.993, lon:8.791, kreis:'Lippe',          label:'FF Lage',               url:'https://www.presseportal.de/rss/dienststelle_117388.rss' },
+  { id:'pp_fw_leo', type:'feuerwehr', lat:51.999, lon:8.694, kreis:'Lippe',          label:'FF Leopoldshöhe',       url:'https://www.presseportal.de/rss/dienststelle_119364.rss' },
+  { id:'pp_thw',    type:'thw',       lat:LOCS.bi[0], lon:LOCS.bi[1], kreis:'OWL',  label:'THW',                   url:'https://www.presseportal.de/rss/dienststelle_23933.rss' },
+];
+
+// ─────────────────────── STATE ───────────────────────
+const S = {
+  events: [],
+  filtered: [],
+  newIds: new Set(),
+  sourceStatus: {},
+  filters: { types: new Set(Object.keys(COLORS)), hours: 24, sev: 'all', radius: 50, search: '' },
+  clusters: {},
+  heatLayer: null,
+  radiusCircle: null,
+  kreiseGroup: null,
+  charts: {},
+  soundOn: false,
+  drawerOpen: false,
+  countdown: 300,
+  countdownTimer: null,
+  journalRef: null,
+};
+
+// ─────────────────────── MAP ───────────────────────
+const MAP = L.map('map', { center: CFG.center, zoom: CFG.zoom, zoomControl: true });
+
+const TILES = {
+  dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution:'© CARTO', subdomains:'abcd', maxZoom:19 }),
+  sat:  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution:'© Esri', maxZoom:19 }),
+  osm:  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OSM', maxZoom:19 }),
+};
+TILES.dark.addTo(MAP);
+
+Object.keys(COLORS).forEach(type => {
+  S.clusters[type] = L.markerClusterGroup({
+    maxClusterRadius: 45,
+    iconCreateFunction: cg => {
+      const n = cg.getChildCount();
+      return L.divIcon({
+        html:`<div style="background:${COLORS[type]};color:#000;font-weight:700;font-size:11px;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid rgba(255,255,255,.35);box-shadow:0 2px 10px rgba(0,0,0,.7);">${n}</div>`,
+        className:'', iconSize:[30,30], iconAnchor:[15,15],
+      });
+    }
+  }).addTo(MAP);
+});
+
+// ─────────────────────── UTILS ───────────────────────
+function dist(la1,lo1,la2,lo2){
+  const R=6371,dL=(la2-la1)*Math.PI/180,dO=(lo2-lo1)*Math.PI/180;
+  return R*2*Math.atan2(Math.sqrt(Math.sin(dL/2)**2+Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dO/2)**2),Math.sqrt(1-Math.sin(dL/2)**2-Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dO/2)**2));
+}
+
+function classifySev(txt=''){
+  const t=txt.toLowerCase();
+  if(['mord','totschlag','geisel','schusswaffe','leiche','vermisstes kind','bombenanschlag','explosion','amok'].some(w=>t.includes(w))) return 'extreme';
+  if(['raub','bewaffnet','brandstiftung','großbrand','sexualdelikt','vergewaltigung','vermisst','körperverletzung schwer','messerangriff'].some(w=>t.includes(w))) return 'high';
+  if(['einbruch','betrug','drogenhandel','unfall','körperverletzung','fahren unter'].some(w=>t.includes(w))) return 'medium';
+  return 'low';
+}
+
+function classifyCrime(txt=''){
+  const t=txt.toLowerCase();
+  if(['mord','körperverletzung','schlägerei','angriff','messer','schlag'].some(w=>t.includes(w))) return 'Gewaltdelikt';
+  if(['einbruch','diebstahl','raub','taschendiebstahl'].some(w=>t.includes(w))) return 'Eigentum';
+  if(['brand','feuer','brandstiftung'].some(w=>t.includes(w))) return 'Brand';
+  if(['unfall','auffahren','zusammenstoß','verkehr'].some(w=>t.includes(w))) return 'Verkehr';
+  if(['drogen','btm','amphetamin','kokain','cannabis'].some(w=>t.includes(w))) return 'Drogen';
+  if(['betrug','phishing','trickbetrug','enkeltrick'].some(w=>t.includes(w))) return 'Betrug';
+  if(['vermisst','gesucht','unbekannt'].some(w=>t.includes(w))) return 'Vermisst';
+  if(['sexualdelikt','belästigung','vergewaltigung'].some(w=>t.includes(w))) return 'Sexualdelikt';
+  return 'Sonstiges';
+}
+
+function nearestKreis(lat,lon){
+  const K=[['Bielefeld',52.020,8.532],['Herford',52.115,8.661],['Minden-Lübbecke',52.290,8.916],['Lippe',51.922,8.883],['Gütersloh',51.907,8.383],['Osnabrück',52.279,8.047]];
+  return K.sort((a,b)=>dist(lat,lon,a[1],a[2])-dist(lat,lon,b[1],b[2]))[0][0];
+}
+
+function ageText(d){
+  if(!d||isNaN(d)) return '–';
+  const ms=Date.now()-d;
+  if(ms<3600000) return `vor ${Math.floor(ms/60000)} Min.`;
+  if(ms<86400000) return `vor ${Math.floor(ms/3600000)} Std.`;
+  return d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'});
+}
+
+function sevLabel(s){ return {extreme:'🔴 Extrem',high:'🟠 Hoch',medium:'🟡 Mittel',low:'⚪ Niedrig'}[s]||'⚪'; }
+
+function markerIcon(type, sev, isNew){
+  const sz=SEV_SIZE[sev]||22;
+  return L.divIcon({
+    html:`<div class="${isNew?'marker-new':''}" style="font-size:${sz}px;line-height:1;filter:drop-shadow(0 2px 8px rgba(0,0,0,.95));cursor:pointer;">${ICONS[type]||'📍'}</div>`,
+    className:'', iconSize:[sz,sz], iconAnchor:[sz/2,sz/2], popupAnchor:[0,-sz/2],
+  });
+}
+
+function popupHtml(ev){
+  const jEntries = getJournal(ev.id);
+  const jHtml = jEntries.length
+    ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid #374151;">
+        <div style="font-size:10px;color:#9ca3af;margin-bottom:3px;">📓 Tagebuch</div>
+        ${jEntries.map(e=>`<div style="font-size:11px;color:#d1d5db;margin-bottom:3px;">${e.text}</div>`).join('')}
+       </div>` : '';
+  const safeId = ev.id.replace(/'/g,"\\'");
+  const safeTitle = (ev.title||'').substring(0,40).replace(/'/g,"\\'");
+  return `
+    <div style="font-family:system-ui,sans-serif;min-width:220px;max-width:310px;">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+        <span style="font-size:16px;">${ICONS[ev.type]}</span>
+        <span style="font-size:10px;background:${COLORS[ev.type]};color:#000;padding:1px 7px;border-radius:20px;font-weight:700;">${LABELS[ev.type]}</span>
+        <span style="font-size:10px;color:#9ca3af;margin-left:auto;">${ageText(ev.date)}</span>
+      </div>
+      <div style="font-size:13px;font-weight:600;color:#f9fafb;margin-bottom:4px;line-height:1.35;">${ev.title}</div>
+      ${ev.source?`<div style="font-size:11px;color:#9ca3af;margin-bottom:5px;">📍 ${ev.source} · ${ev.kreis||''} · ${sevLabel(ev.severity)}</div>`:''}
+      ${ev.desc?`<div style="font-size:11px;color:#d1d5db;line-height:1.45;max-height:90px;overflow-y:auto;">${ev.desc.substring(0,280)}${ev.desc.length>280?'…':''}</div>`:''}
+      <div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
+        ${ev.link?`<a href="${ev.link}" target="_blank" rel="noopener" style="font-size:11px;color:#60a5fa;text-decoration:underline;">🔗 Quelle</a>`:''}
+        <button onclick="openJournal('${safeId}','${safeTitle}')" style="font-size:11px;color:#a78bfa;background:none;border:none;cursor:pointer;text-decoration:underline;padding:0;">📓 Notiz</button>
+      </div>
+      ${jHtml}
+    </div>`;
+}
+
+// ─────────────────────── FETCH: NINA ───────────────────────
+async function apiFetch(url){
+  try{ const r=await fetch(url); if(!r.ok) throw new Error(r.status); return r.json(); }
+  catch(e){ const r=await fetch(CFG.CORS+encodeURIComponent(url)); if(!r.ok) throw new Error(r.status); return r.json(); }
+}
+
+async function fetchNINA(){
+  setSrc('nina','loading');
+  try{
+    const data=await apiFetch('https://nina.api.proxy.bund.dev/api31/warnings/mapData.json');
+    const evs=[];
+    for(const item of (data||[])){
+      const pd=item.payload?.data||{};
+      let lat=null,lon=null;
+      const geo=item.coordinates?.[0];
+      if(Array.isArray(geo)&&Array.isArray(geo[0])){
+        lat=geo.reduce((s,c)=>s+c[1],0)/geo.length;
+        lon=geo.reduce((s,c)=>s+c[0],0)/geo.length;
+      } else if(Array.isArray(geo)&&typeof geo[0]==='number'){
+        lon=geo[0];lat=geo[1];
+      }
+      if(!lat||!lon) continue;
+      const sm={extreme:'extreme',severe:'high',moderate:'medium'}[pd.severity?.toLowerCase()]||'medium';
+      evs.push({id:'nina_'+item.id,type:'nina',title:pd.headline||pd.event||'NINA Warnung',desc:pd.description||'',date:pd.effective?new Date(pd.effective):new Date(),lat,lon,severity:sm,source:'NINA BBK',kreis:nearestKreis(lat,lon),crime:null,link:'https://warnung.bund.de/'});
+    }
+    setSrc('nina','ok'); return evs;
+  }catch(e){ setSrc('nina','error'); return []; }
+}
+
+// ─────────────────────── FETCH: BRIGHTSKY ───────────────────────
+async function fetchDWD(){
+  setSrc('dwd','loading');
+  try{
+    const {alerts=[]}=await apiFetch('https://api.brightsky.dev/alerts');
+    const evs=[];
+    for(const a of alerts){
+      let lat=null,lon=null;
+      if(a.geometry?.coordinates?.[0]){
+        const c=a.geometry.coordinates[0];
+        lat=c.reduce((s,p)=>s+p[1],0)/c.length;
+        lon=c.reduce((s,p)=>s+p[0],0)/c.length;
+      } else if(a.geometry?.type==='Point'){
+        [lon,lat]=a.geometry.coordinates;
+      }
+      if(!lat||!lon) continue;
+      if(lat<51.2||lat>52.8||lon<7.0||lon>9.8) continue;
+      const sm={Extreme:'extreme',Severe:'high',Moderate:'medium',Minor:'low'}[a.severity]||'medium';
+      evs.push({id:'dwd_'+(a.id||Math.random().toString(36).slice(2)),type:'dwd',title:a.headline||a.event||'DWD Warnung',desc:a.description||'',date:a.onset?new Date(a.onset):new Date(),lat,lon,severity:sm,source:'DWD/Brightsky',kreis:nearestKreis(lat,lon),crime:null,link:'https://www.dwd.de/DE/wetter/warnungen_gemeinden/warnWetter_node.html'});
+    }
+    setSrc('dwd','ok'); return evs;
+  }catch(e){ setSrc('dwd','error'); return []; }
+}
+
+// ─────────────────────── FETCH: PEGELONLINE ───────────────────────
+async function fetchPegel(){
+  setSrc('pegel','loading');
+  try{
+    const stations=await apiFetch('https://www.pegelonline.wsv.de/webservices/rest-api/v2/stations.json?bbox=7.5,51.4,9.5,52.7&includeTimeseries=true&includeCurrentMeasurement=true');
+    const evs=[];
+    for(const st of stations){
+      const lat=st.latitude,lon=st.longitude;
+      if(!lat||!lon) continue;
+      const ts=(st.timeseries||[]).find(t=>t.shortname==='W');
+      const val=ts?.currentMeasurement?.value;
+      const unit=ts?.unit||'cm';
+      evs.push({
+        id:'pegel_'+st.uuid,type:'pegel',
+        title:`Pegel ${st.longname}${st.water?.longname?' ('+st.water.longname+')':''}`,
+        desc:val!=null?`Aktuell: ${val} ${unit}`:'Kein Messwert',
+        date:ts?.currentMeasurement?.timestamp?new Date(ts.currentMeasurement.timestamp):new Date(),
+        lat,lon,severity:'low',source:'Pegelonline WSV',kreis:nearestKreis(lat,lon),crime:null,
+        link:`https://www.pegelonline.wsv.de/gast/stammdaten/stationsdetail?station=${st.shortname}`,
+      });
+    }
+    setSrc('pegel','ok'); return evs;
+  }catch(e){ setSrc('pegel','error'); return []; }
+}
+
+// ─────────────────────── FETCH: RSS ───────────────────────
+async function parseRSS(xml){
+  const doc=new DOMParser().parseFromString(xml,'application/xml');
+  return Array.from(doc.querySelectorAll('item')).map(i=>({
+    title:i.querySelector('title')?.textContent?.trim()||'',
+    desc:(i.querySelector('description')?.textContent||'').replace(/<[^>]+>/g,'').trim(),
+    link:i.querySelector('link')?.textContent?.trim()||'',
+    date:new Date(i.querySelector('pubDate')?.textContent||''),
+    guid:i.querySelector('guid')?.textContent||Math.random().toString(36),
+  }));
+}
+
+async function fetchRSS(feed){
+  setSrc(feed.id,'loading');
+  try{
+    let txt;
+    try{
+      const r=await fetch(feed.url,{signal:AbortSignal.timeout(8000)});
+      if(!r.ok) throw new Error(r.status);
+      txt=await r.text();
+    }catch(e){
+      const r=await fetch(CFG.CORS+encodeURIComponent(feed.url),{signal:AbortSignal.timeout(12000)});
+      if(!r.ok) throw new Error(r.status);
+      txt=await r.text();
+    }
+    if(!txt||txt.length<100) throw new Error('empty');
+    const items=await parseRSS(txt);
+    const evs=items.flatMap(it=>{
+      const combo=it.title+' '+it.desc;
+      const low=combo.toLowerCase();
+      let type=feed.type;
+      if(type==='thw'&&!low.includes('thw')) type='polizei';
+      const base={id:feed.id+'_'+it.guid,type,title:it.title,desc:it.desc,date:it.date,lat:feed.lat,lon:feed.lon,severity:classifySev(combo),source:feed.label,kreis:feed.kreis,crime:classifyCrime(combo),link:it.link};
+      return [base];
+    });
+    setSrc(feed.id,'ok'); return evs;
+  }catch(e){ setSrc(feed.id,'error'); return []; }
+}
+
+// ─────────────────────── WEATHER ───────────────────────
+async function fetchWeather(){
+  try{
+    const r=await fetch(`https://api.brightsky.dev/current_weather?lat=${CFG.center[0]}&lon=${CFG.center[1]}`);
+    const {weather:w}=await r.json();
+    if(!w) return;
+    const icons={
+      'clear-day':'☀️','clear-night':'🌙','partly-cloudy-day':'⛅','partly-cloudy-night':'🌙',
+      'cloudy':'☁️','fog':'🌫️','wind':'💨','rain':'🌧️','sleet':'🌨️','snow':'❄️','hail':'🌨️','thunderstorm':'⛈️'
+    };
+    document.getElementById('w-icon').textContent=icons[w.icon]||'🌤️';
+    document.getElementById('w-temp').textContent=`${Math.round(w.temperature??0)}°C`;
+    document.getElementById('w-desc').textContent=w.condition||w.icon||'–';
+    document.getElementById('w-wind').textContent=`💨 ${Math.round(w.wind_speed??0)} km/h`;
+    document.getElementById('w-hum').textContent=`💧 ${w.relative_humidity??'–'}%`;
+  }catch(e){}
+}
+
+// ─────────────────────── MAIN FETCH ───────────────────────
+async function fetchAll(){
+  const [nina,dwd,pegel]=await Promise.all([fetchNINA(),fetchDWD(),fetchPegel()]);
+  const rssAll=await Promise.all(RSS_FEEDS.map(fetchRSS));
+  const fresh=[...nina,...dwd,...pegel,...rssAll.flat()];
+  mergeArchive(fresh);
+  applyFilters();
+  renderTicker();
+  updateMiniStats();
+  renderSourceBar();
+  document.getElementById('last-update').textContent='Aktualisiert: '+new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+  fetchWeather();
+  if(S.soundOn) checkCritical(fresh);
+}
+
+function mergeArchive(fresh){
+  const arc=loadArchive();
+  const freshIds=new Set(fresh.map(e=>e.id));
+  S.newIds=new Set(fresh.filter(e=>!arc.has(e.id)).map(e=>e.id));
+  const cut=Date.now()-CFG.maxAgeDays*86400000;
+  const old=[...arc.values()].filter(e=>!freshIds.has(e.id)&&e.date>=cut);
+  S.events=[...fresh,...old.map(e=>({...e,archived:true}))];
+  saveArchive(fresh);
+}
+
+// ─────────────────────── FILTERS ───────────────────────
+function applyFilters(){
+  const {types,hours,sev,radius,search}=S.filters;
+  const cutMs=hours===9999?CFG.maxAgeDays*86400000:hours*3600000;
+  const now=Date.now();
+  const q=search.toLowerCase();
+  S.filtered=S.events.filter(ev=>{
+    if(!types.has(ev.type)) return false;
+    if(ev.date&&(now-ev.date)>cutMs) return false;
+    if(sev!=='all'&&ev.severity!==sev) return false;
+    if(ev.lat&&ev.lon&&dist(CFG.center[0],CFG.center[1],ev.lat,ev.lon)>radius) return false;
+    if(q){
+      const txt=(ev.title+' '+ev.desc+' '+ev.source+' '+ev.kreis).toLowerCase();
+      if(!txt.includes(q)) return false;
+    }
+    return true;
+  });
+  renderMarkers();
+}
+
+// ─────────────────────── MARKERS ───────────────────────
+function renderMarkers(){
+  Object.values(S.clusters).forEach(g=>g.clearLayers());
+  const heat=[];
+  S.filtered.forEach(ev=>{
+    if(!ev.lat||!ev.lon) return;
+    const isNew=S.newIds.has(ev.id);
+    const m=L.marker([ev.lat,ev.lon],{icon:markerIcon(ev.type,ev.severity,isNew)});
+    m.bindPopup(popupHtml(ev),{maxWidth:340});
+    S.clusters[ev.type].addLayer(m);
+    heat.push([ev.lat,ev.lon,{extreme:1,high:.65,medium:.35,low:.15}[ev.severity]||.2]);
+  });
+  if(S.heatLayer) MAP.removeLayer(S.heatLayer);
+  S.heatLayer=L.heatLayer(heat,{radius:32,blur:24,maxZoom:13,gradient:{0.2:'#0055CC',0.5:'#FFAA00',0.8:'#FF6600',1.0:'#E040FB'}});
+  if(document.getElementById('toggle-heatmap').checked) S.heatLayer.addTo(MAP);
+}
+
+// ─────────────────────── RADIUS CIRCLE ───────────────────────
+function updateRadius(){
+  if(S.radiusCircle) MAP.removeLayer(S.radiusCircle);
+  if(!document.getElementById('toggle-radius').checked) return;
+  S.radiusCircle=L.circle(CFG.center,{
+    radius:S.filters.radius*1000,
+    color:'#60a5fa',fillColor:'#3b82f6',fillOpacity:.03,weight:1.5,dashArray:'6,5'
+  }).addTo(MAP);
+}
+
+// ─────────────────────── KREIS BORDERS ───────────────────────
+function drawKreise(){
+  const K=[
+    {n:'Bielefeld',   la:52.020,lo:8.532,r:13500},
+    {n:'Herford',     la:52.115,lo:8.661,r:16000},
+    {n:'Minden-Lübb.',la:52.290,lo:8.916,r:21000},
+    {n:'Lippe',       la:51.922,lo:8.883,r:21000},
+    {n:'Gütersloh',   la:51.907,lo:8.383,r:20000},
+    {n:'Osnabrück',   la:52.279,lo:8.047,r:18000},
+  ];
+  S.kreiseGroup=L.layerGroup();
+  K.forEach(k=>{
+    L.circle([k.la,k.lo],{radius:k.r,color:'#374151',fillOpacity:0,weight:1,dashArray:'5,5',interactive:false}).addTo(S.kreiseGroup);
+    L.marker([k.la,k.lo],{
+      icon:L.divIcon({html:`<div style="font-size:10px;color:#4b5563;font-weight:600;white-space:nowrap;text-shadow:0 1px 4px #000;">${k.n}</div>`,className:'kreis-label',iconAnchor:[25,8]}),
+      interactive:false,zIndexOffset:-1000
+    }).addTo(S.kreiseGroup);
+  });
+  if(document.getElementById('toggle-kreise').checked) S.kreiseGroup.addTo(MAP);
+}
+
+// ─────────────────────── TICKER ───────────────────────
+function renderTicker(){
+  const evs=[...S.filtered].sort((a,b)=>(b.date||0)-(a.date||0)).slice(0,150);
+  const html=evs.length
+    ? evs.map(ev=>`
+      <div class="ticker-item px-3 py-2.5 cursor-pointer border-b border-gray-800/60" onclick="focusEv(${ev.lat},${ev.lon})">
+        <div class="flex items-start gap-2">
+          <span class="text-lg flex-shrink-0 mt-0.5">${ICONS[ev.type]}</span>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-1 flex-wrap mb-0.5">
+              <span class="text-xs px-1.5 py-px rounded-full font-semibold" style="background:${COLORS[ev.type]}25;color:${COLORS[ev.type]};">${LABELS[ev.type]}</span>
+              <span class="text-xs text-gray-500">${sevLabel(ev.severity)}</span>
+              ${S.newIds.has(ev.id)?'<span class="text-xs bg-green-500/20 text-green-400 px-1.5 rounded-full font-medium">NEU</span>':''}
+            </div>
+            <div class="text-xs font-medium text-gray-100 line-clamp-2 leading-relaxed">${ev.title}</div>
+            <div class="text-xs text-gray-500 mt-0.5">${ev.source||''} · ${ageText(ev.date)}${ev.kreis?' · '+ev.kreis:''}</div>
+          </div>
+        </div>
+      </div>`).join('')
+    : '<div class="px-4 py-10 text-center text-gray-500 text-sm">Keine Meldungen.</div>';
+  document.getElementById('ticker-list').innerHTML=html;
+  document.getElementById('mob-ticker').innerHTML=html;
+}
+
+function focusEv(lat,lon){
+  if(lat&&lon) MAP.setView([lat,lon],14,{animate:true});
+}
+
+// ─────────────────────── MINI STATS ───────────────────────
+function updateMiniStats(){
+  const counts={};
+  S.filtered.forEach(ev=>{ counts[ev.type]=(counts[ev.type]||0)+1; });
+  document.getElementById('mini-badges').innerHTML=Object.entries(counts)
+    .map(([t,n])=>`<span class="text-xs px-2 py-0.5 rounded-full font-medium" style="background:${COLORS[t]}20;color:${COLORS[t]};">${ICONS[t]} ${n}</span>`).join('');
+  const kc={};
+  S.filtered.forEach(ev=>{ if(ev.kreis) kc[ev.kreis]=(kc[ev.kreis]||0)+1; });
+  const top=Object.entries(kc).sort((a,b)=>b[1]-a[1])[0];
+  document.getElementById('hotspot-line').textContent=top?`Hotspot: ${top[0]} (${top[1]} Meldungen)`:'–';
+}
+
+// ─────────────────────── SOURCE STATUS BAR ───────────────────────
+function setSrc(id,status){ S.sourceStatus[id]=status; }
+
+function renderSourceBar(){
+  const all=['dwd','pegel',...RSS_FEEDS.map(f=>f.id)];
+  const seen=new Set();
+  document.getElementById('source-status-bar').innerHTML=all.filter(id=>!seen.has(id)&&seen.add(id)).map(id=>{
+    const st=S.sourceStatus[id]||'loading';
+    const col={ok:'#22c55e',error:'#ef4444',loading:'#f59e0b'}[st];
+    const lbl=RSS_FEEDS.find(f=>f.id===id)?.label||LABELS[id]||id;
+    const short=lbl.split(' ').slice(0,2).join(' ');
+    return `<span class="flex items-center gap-1 text-xs text-gray-400" title="${lbl}: ${st}">
+      <span style="width:5px;height:5px;border-radius:50%;background:${col};flex-shrink:0;"></span>${short}
+    </span>`;
+  }).join('');
+}
+
+// ─────────────────────── FILTER UI INIT ───────────────────────
+function initFilters(){
+  // Type chips
+  document.getElementById('type-filters').innerHTML=Object.entries(LABELS).map(([t,l])=>
+    `<button class="filter-chip filter-type px-2 py-0.5 rounded-full text-xs font-medium border" data-t="${t}"
+      style="border-color:${COLORS[t]};color:${COLORS[t]};background:${COLORS[t]}30;">${ICONS[t]} ${l}</button>`
+  ).join('');
+
+  document.getElementById('type-filters').addEventListener('click',e=>{
+    const btn=e.target.closest('.filter-type');
+    if(!btn) return;
+    const t=btn.dataset.t;
+    if(S.filters.types.has(t)){
+      S.filters.types.delete(t);
+      btn.style.background='transparent'; btn.style.opacity='.35';
+    } else {
+      S.filters.types.add(t);
+      btn.style.background=COLORS[t]+'30'; btn.style.opacity='1';
+    }
+    refresh();
+  });
+
+  // Time
+  document.querySelectorAll('.filter-time').forEach(btn=>btn.addEventListener('click',()=>{
+    document.querySelectorAll('.filter-time').forEach(b=>{ b.className='filter-time px-2 py-0.5 rounded text-xs bg-gray-800 text-gray-400'; });
+    btn.className='filter-time px-2 py-0.5 rounded text-xs bg-blue-600 text-white';
+    S.filters.hours=+btn.dataset.h; refresh();
+  }));
+
+  // Severity
+  document.querySelectorAll('.filter-sev').forEach(btn=>btn.addEventListener('click',()=>{
+    document.querySelectorAll('.filter-sev').forEach(b=>{ b.className='filter-sev px-2 py-0.5 rounded text-xs bg-gray-800 text-gray-400'; });
+    btn.className='filter-sev px-2 py-0.5 rounded text-xs bg-blue-600 text-white';
+    S.filters.sev=btn.dataset.s; refresh();
+  }));
+
+  // Radius
+  const slider=document.getElementById('radius-slider');
+  slider.addEventListener('input',()=>{
+    S.filters.radius=+slider.value;
+    document.getElementById('radius-val').textContent=slider.value+' km';
+    updateRadius(); refresh();
+  });
+
+  // Search
+  let st;
+  document.getElementById('search-box').addEventListener('input',e=>{
+    clearTimeout(st); st=setTimeout(()=>{ S.filters.search=e.target.value; refresh(); },280);
+  });
+
+  // Layer toggles
+  document.getElementById('toggle-heatmap').addEventListener('change',e=>{
+    e.target.checked&&S.heatLayer?S.heatLayer.addTo(MAP):S.heatLayer&&MAP.removeLayer(S.heatLayer);
+  });
+  document.getElementById('toggle-kreise').addEventListener('change',e=>{
+    e.target.checked&&S.kreiseGroup?S.kreiseGroup.addTo(MAP):S.kreiseGroup&&MAP.removeLayer(S.kreiseGroup);
+  });
+  document.getElementById('toggle-radius').addEventListener('change',updateRadius);
+
+  // Map type
+  document.querySelectorAll('input[name="mtype"]').forEach(r=>r.addEventListener('change',e=>{
+    Object.values(TILES).forEach(t=>MAP.removeLayer(t)); TILES[e.target.value].addTo(MAP);
+  }));
+
+  // Tabs
+  document.querySelectorAll('.tab-btn').forEach(btn=>btn.addEventListener('click',()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>{ b.className='tab-btn flex-1 py-2 text-xs font-medium text-gray-500'; });
+    btn.className='tab-btn flex-1 py-2 text-xs font-medium text-blue-400 border-b-2 border-blue-500';
+    document.getElementById('pane-ticker').classList.toggle('hidden',btn.dataset.t!=='ticker');
+    document.getElementById('pane-journal').classList.toggle('hidden',btn.dataset.t!=='journal');
+    if(btn.dataset.t==='journal') renderJournalPane();
+  }));
+}
+
+function refresh(){
+  applyFilters(); renderTicker(); updateMiniStats();
+}
+
+// ─────────────────────── STATS ───────────────────────
+function openStats(){
+  document.getElementById('stats-overlay').classList.remove('hidden');
+  setTimeout(renderCharts,80);
+}
+function closeStats(){ document.getElementById('stats-overlay').classList.add('hidden'); }
+
+function renderCharts(){
+  Object.values(S.charts).forEach(c=>c.destroy?.());
+  S.charts={};
+  const evs=S.filtered;
+  const polEvs=evs.filter(e=>e.type==='polizei');
+  const chOpts={ responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{ labels:{ color:'#9ca3af', boxWidth:10, font:{size:10} } } } };
+  const gridColor='#1f2937';
+
+  // Hourly (24h)
+  const now=new Date(), h24=Array.from({length:24},(_,i)=>{ const d=new Date(now); d.setHours(d.getHours()-23+i,0,0,0); return d; });
+  const hCounts=h24.map(h=>{ const e=new Date(h); e.setHours(e.getHours()+1); return evs.filter(ev=>ev.date>=h&&ev.date<e).length; });
+  S.charts.hourly=new Chart(document.getElementById('ch-hourly').getContext('2d'),{
+    type:'bar',
+    data:{ labels:h24.map(h=>h.getHours()+':00'), datasets:[{ data:hCounts, backgroundColor:'#3b82f620', borderColor:'#3b82f6', borderWidth:1 }] },
+    options:{ ...chOpts, plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:'#4b5563',font:{size:9}},grid:{color:gridColor}}, y:{ticks:{color:'#4b5563'},grid:{color:gridColor},beginAtZero:true} } }
+  });
+
+  // Sources donut
+  const srcC={};
+  evs.forEach(ev=>{ srcC[ev.type]=(srcC[ev.type]||0)+1; });
+  S.charts.src=new Chart(document.getElementById('ch-sources').getContext('2d'),{
+    type:'doughnut',
+    data:{ labels:Object.keys(srcC).map(t=>LABELS[t]), datasets:[{ data:Object.values(srcC), backgroundColor:Object.keys(srcC).map(t=>COLORS[t]+'CC'), borderWidth:0 }] },
+    options:chOpts
+  });
+
+  // Severity (police)
+  const sc={extreme:0,high:0,medium:0,low:0};
+  polEvs.forEach(ev=>sc[ev.severity]++);
+  S.charts.sev=new Chart(document.getElementById('ch-sev').getContext('2d'),{
+    type:'doughnut',
+    data:{ labels:['Extrem','Hoch','Mittel','Niedrig'], datasets:[{ data:Object.values(sc), backgroundColor:['#E040FBCC','#FF6600CC','#FFAA00CC','#374151CC'], borderWidth:0 }] },
+    options:chOpts
+  });
+
+  // Crime types
+  const cc={};
+  polEvs.forEach(ev=>{ if(ev.crime) cc[ev.crime]=(cc[ev.crime]||0)+1; });
+  S.charts.crimes=new Chart(document.getElementById('ch-crimes').getContext('2d'),{
+    type:'bar',
+    data:{ labels:Object.keys(cc), datasets:[{ data:Object.values(cc), backgroundColor:'#FFD70080', borderColor:'#FFD700', borderWidth:1 }] },
+    options:{ ...chOpts, indexAxis:'y', plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:'#4b5563'},grid:{color:gridColor},beginAtZero:true}, y:{ticks:{color:'#9ca3af',font:{size:10}},grid:{color:gridColor}} } }
+  });
+
+  // Top Kreise
+  const kc={};
+  evs.forEach(ev=>{ if(ev.kreis) kc[ev.kreis]=(kc[ev.kreis]||0)+1; });
+  const topK=Object.entries(kc).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const maxK=topK[0]?.[1]||1;
+  document.getElementById('top-kreise').innerHTML=topK.map(([n,c])=>
+    `<div class="flex items-center gap-2 text-xs">
+      <div class="w-28 text-gray-300 truncate">${n}</div>
+      <div class="flex-1 bg-gray-800 rounded-full h-1.5"><div class="bg-blue-500 h-1.5 rounded-full" style="width:${(c/maxK*100).toFixed(0)}%"></div></div>
+      <div class="text-gray-400 w-5 text-right">${c}</div>
+    </div>`).join('')||'<div class="text-xs text-gray-500">Keine Daten</div>';
+
+  // Danger rank (police score)
+  const dc={};
+  polEvs.forEach(ev=>{ if(ev.kreis){ dc[ev.kreis]=(dc[ev.kreis]||0)+({extreme:10,high:5,medium:2,low:1}[ev.severity]||1); } });
+  const topD=Object.entries(dc).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const maxD=topD[0]?.[1]||1;
+  const dangerColors=['#E040FB','#FF6600','#FFAA00','#FFD700','#00BCD4','#9C27B0'];
+  document.getElementById('danger-rank').innerHTML=topD.map(([n,s],i)=>
+    `<div class="flex items-center gap-2 text-xs">
+      <div class="text-gray-500 w-4">${i+1}.</div>
+      <div class="w-24 text-gray-300 truncate">${n}</div>
+      <div class="flex-1 bg-gray-800 rounded-full h-1.5"><div class="h-1.5 rounded-full" style="width:${(s/maxD*100).toFixed(0)}%;background:${dangerColors[i]};"></div></div>
+      <div class="text-gray-400 w-5 text-right">${s}</div>
+    </div>`).join('')||'<div class="text-xs text-gray-500">Keine Daten</div>';
+
+  // Trend: today vs yesterday
+  const tod=new Date(); tod.setHours(0,0,0,0);
+  const yes=new Date(tod); yes.setDate(yes.getDate()-1);
+  const trendH=Array.from({length:24},(_,i)=>i);
+  const todData=trendH.map(h=>{ const s=new Date(tod); s.setHours(h); const e=new Date(s); e.setHours(h+1); return evs.filter(ev=>ev.date>=s&&ev.date<e).length; });
+  const yesData=trendH.map(h=>{ const s=new Date(yes); s.setHours(h); const e=new Date(s); e.setHours(h+1); return evs.filter(ev=>ev.date>=s&&ev.date<e).length; });
+  S.charts.trend=new Chart(document.getElementById('ch-trend').getContext('2d'),{
+    type:'line',
+    data:{ labels:trendH.map(h=>h+':00'), datasets:[
+      {label:'Heute',data:todData,borderColor:'#3b82f6',backgroundColor:'#3b82f608',tension:.35,fill:true,pointRadius:2},
+      {label:'Gestern',data:yesData,borderColor:'#6b7280',backgroundColor:'#6b728008',tension:.35,fill:true,borderDash:[4,4],pointRadius:2},
+    ]},
+    options:{ ...chOpts, scales:{ x:{ticks:{color:'#4b5563',font:{size:9}},grid:{color:gridColor}}, y:{ticks:{color:'#4b5563'},grid:{color:gridColor},beginAtZero:true} } }
+  });
+}
+
+// ─────────────────────── REFRESH + COUNTDOWN ───────────────────────
+function startCountdown(){
+  S.countdown=300;
+  clearInterval(S.countdownTimer);
+  S.countdownTimer=setInterval(()=>{
+    S.countdown--;
+    const m=Math.floor(S.countdown/60), s=S.countdown%60;
+    document.getElementById('countdown').textContent=`${m}:${s.toString().padStart(2,'0')}`;
+    if(S.countdown<=0){ S.countdown=300; fetchAll(); }
+  },1000);
+}
+
+function manualRefresh(){ S.countdown=300; fetchAll(); }
+
+// ─────────────────────── SOUND ───────────────────────
+function toggleSound(){
+  S.soundOn=!S.soundOn;
+  document.getElementById('sound-btn').textContent=S.soundOn?'🔔':'🔕';
+}
+
+function checkCritical(evs){
+  if(evs.some(ev=>ev.severity==='extreme'&&S.newIds.has(ev.id))) beep();
+}
+
+function beep(){
+  try{
+    const ac=new(window.AudioContext||window.webkitAudioContext)();
+    [520,620,520].forEach((f,i)=>{
+      const o=ac.createOscillator(), g=ac.createGain();
+      o.connect(g); g.connect(ac.destination);
+      o.frequency.value=f; o.type='sine';
+      g.gain.setValueAtTime(.3,ac.currentTime+i*.25);
+      g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+i*.25+.2);
+      o.start(ac.currentTime+i*.25); o.stop(ac.currentTime+i*.25+.25);
+    });
+  }catch(e){}
+}
+
+// ─────────────────────── FULLSCREEN ───────────────────────
+function toggleFullscreen(){
+  document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen();
+}
+
+// ─────────────────────── MOBILE DRAWER ───────────────────────
+function toggleDrawer(){
+  S.drawerOpen=!S.drawerOpen;
+  document.getElementById('mobile-drawer').classList.toggle('closed',!S.drawerOpen);
+}
+
+// ─────────────────────── LAGETAGEBUCH ───────────────────────
+function getJournal(eventId){
+  try{ return JSON.parse(localStorage.getItem('owl_journal')||'{}')[eventId]||[]; }catch(e){ return []; }
+}
+
+function openJournal(eventId,title){
+  S.journalRef=eventId;
+  document.getElementById('j-ref').textContent=title;
+  document.getElementById('j-text').value='';
+  document.getElementById('journal-modal').classList.remove('hidden');
+}
+
+function closeJournal(){ document.getElementById('journal-modal').classList.add('hidden'); }
+
+function saveJournal(){
+  const txt=document.getElementById('j-text').value.trim();
+  if(!txt||!S.journalRef) return;
+  try{
+    const all=JSON.parse(localStorage.getItem('owl_journal')||'{}');
+    (all[S.journalRef]=all[S.journalRef]||[]).push({text:txt,date:new Date().toISOString()});
+    localStorage.setItem('owl_journal',JSON.stringify(all));
+  }catch(e){}
+  closeJournal(); renderJournalPane();
+}
+
+function renderJournalPane(){
+  try{
+    const all=JSON.parse(localStorage.getItem('owl_journal')||'{}');
+    const entries=Object.entries(all).flatMap(([id,items])=>items.map(i=>({...i,eventId:id})))
+      .sort((a,b)=>new Date(b.date)-new Date(a.date));
+    document.getElementById('journal-list').innerHTML=entries.length
+      ? entries.map(e=>`<div class="bg-gray-800 rounded-xl p-3">
+          <div class="text-xs text-gray-500 mb-1">${new Date(e.date).toLocaleString('de-DE')}</div>
+          <div class="text-sm text-gray-200">${e.text}</div>
+         </div>`).join('')
+      : '<p class="text-xs text-gray-500 text-center">Keine Einträge.</p>';
+  }catch(e){}
+}
+
+// ─────────────────────── ARCHIVE ───────────────────────
+function loadArchive(){
+  try{
+    const raw=JSON.parse(localStorage.getItem('owl_events')||'[]');
+    const m=new Map(); raw.forEach(e=>{ e.date=new Date(e.date); m.set(e.id,e); }); return m;
+  }catch(e){ return new Map(); }
+}
+
+function saveArchive(evs){
+  try{ localStorage.setItem('owl_events',JSON.stringify(evs.slice(0,600))); }catch(e){}
+}
+
+// ─────────────────────── PWA ───────────────────────
+function initPWA(){
+  if(!('serviceWorker' in navigator)) return;
+  const sw=`const C='owl-v3';self.addEventListener('install',e=>e.waitUntil(caches.open(C).then(c=>c.addAll(['./']))));self.addEventListener('fetch',e=>{if(new URL(e.request.url).origin!==self.location.origin)return;e.respondWith(fetch(e.request).catch(()=>caches.match(e.request)));});`;
+  const url=URL.createObjectURL(new Blob([sw],{type:'application/javascript'}));
+  navigator.serviceWorker.register(url).catch(()=>{});
+}
+
+// ─────────────────────── INIT ───────────────────────
+async function init(){
+  initFilters();
+  updateRadius();
+  drawKreise();
+  initPWA();
+  renderJournalPane();
+  await fetchAll();
+  startCountdown();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
