@@ -1,0 +1,5 @@
+{
+  "name": "owl-mods",
+  "owner": { "name": "misanthrop666" },
+  "plugins": [{ "name": "model-saver", "source": "./model-saver" }]
+}

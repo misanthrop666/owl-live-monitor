@@ -1,0 +1,6 @@
+{
+  "name": "model-saver",
+  "version": "0.1.0",
+  "description": "Routet einfache Fragen an Haiku, komplexe an Sonnet. Zeigt das aktive Modell in der Statuszeile.",
+  "types": "./types/index.d.ts"
+}
